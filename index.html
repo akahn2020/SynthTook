@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SynthTook</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main id="synth">
+    <header>
+      <div class="header-row">
+        <h1>SYNTHTOOK</h1>
+        <button id="info-btn" type="button" aria-label="Open help">?</button>
+      </div>
+      <div id="boot">
+        <button id="power-btn">POWER ON</button>
+        <select id="midi-select" disabled><option>— power on first —</option></select>
+        <span id="status">audio: off</span>
+      </div>
+    </header>
+
+    <section id="keyboard-section">
+      <div id="keyboard"><div class="key-area"></div></div>
+      <div class="hint">play with mouse, MIDI device, or keys: a w s e d f t g y h u j k</div>
+    </section>
+
+    <section id="controls-section"></section>
+
+    <section id="sequencer-section">
+      <div id="transport">
+        <button id="play-btn">&#9654; PLAY</button>
+        <button id="stop-btn">&#9632; STOP</button>
+        <button id="rec-btn">&#9679; REC</button>
+        <button id="clear-btn">CLEAR</button>
+        <label>BPM <input id="bpm-input" type="number" value="120" min="40" max="240" step="1" /></label>
+      </div>
+      <div id="grid"></div>
+    </section>
+  </main>
+
+  <div id="help-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel">
+      <button id="help-close" type="button" aria-label="Close help">&times;</button>
+      <h2 id="help-title">SYNTHTOOK · QUICK START</h2>
+
+      <section>
+        <h3>1 · GET STARTED</h3>
+        <p>Click <strong>POWER ON</strong>. Browsers block audio until you click something, so this isn't optional. Plug in a USB MIDI keyboard before or after &mdash; the device dropdown updates live.</p>
+      </section>
+
+      <section>
+        <h3>2 · PLAY NOTES</h3>
+        <ul>
+          <li><strong>MIDI keyboard</strong> &mdash; pick it from the dropdown, then play.</li>
+          <li><strong>Mouse</strong> &mdash; click the on-screen keys.</li>
+          <li><strong>Computer keys</strong> &mdash; <code>a w s e d f t g y h u j k</code> covers one octave starting at middle C.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>3 · MAKE A SEQUENCE</h3>
+        <p>The grid below the controls is a piano roll. Rows = pitch (C5 top to C3 bottom), columns = 16 steps. Click any cell to place a note. Multiple cells in the same column = a chord. Set BPM, hit <strong>&#9654; PLAY</strong>. The cyan column highlights the current step. You can play live on the keyboard at the same time the sequence runs. <strong>CLEAR</strong> wipes the pattern.</p>
+      </section>
+
+      <section>
+        <h3>4 · RECORD FROM THE KEYBOARD</h3>
+        <p>Click <strong>&#9679; REC</strong> (it pulses magenta when armed). Two ways to record:</p>
+        <ul>
+          <li><strong>Step record</strong> &mdash; sequencer stopped. A dashed magenta outline marks the cursor step. Play a note (or chord, within ~80ms) on your MIDI keyboard / on-screen keys / computer keys; it lands on that step and the cursor advances. Press <code>Space</code> or <code>&rarr;</code> to skip a step (rest).</li>
+          <li><strong>Live record</strong> &mdash; press PLAY first, then arm REC. Notes you play are written onto whichever step is sounding right now. Loop the pattern and overdub.</li>
+        </ul>
+        <p>Notes are recorded only if their pitch falls in the C3&ndash;C5 piano-roll range. Click REC again to disarm. The sound your shaped synth is making at the moment of recording is what plays back &mdash; but you can tweak the controls afterward and the same notes will sound different.</p>
+      </section>
+
+      <section>
+        <h3>5 · SHAPE THE SOUND</h3>
+        <ul>
+          <li><strong>OSCILLATOR</strong> &mdash; SIN (pure tone), TRI (mellow), SQR (hollow / 8-bit), SAW (bright, buzzy synthwave default). Switch live, even mid-note.</li>
+          <li><strong>AMP ENVELOPE</strong> &mdash; how loudness shapes a note. <em>Attack</em> = fade-in. <em>Decay</em> = drop from peak. <em>Sustain</em> = level held while the key is down. <em>Release</em> = fade-out after letting go.</li>
+          <li><strong>FILTER</strong> &mdash; <em>Cutoff</em> sets the brightness ceiling (low = dark, high = bright). <em>Resonance</em> emphasizes the cutoff frequency.</li>
+          <li><strong>FILTER ENV</strong> &mdash; sweeps the filter on every note. <em>Amount</em> = how many Hz it sweeps. <em>Attack/Decay</em> = sweep shape. The classic synth "wow".</li>
+        </ul>
+      </section>
+
+      <section>
+        <h3>6 · PATCHES TO TRY</h3>
+        <table class="patches">
+          <thead>
+            <tr><th>Patch</th><th>Wave</th><th>A</th><th>D</th><th>S</th><th>R</th><th>Cut</th><th>Q</th><th>Env</th><th>F.A</th><th>F.D</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Punchy bass</td><td>SAW</td><td>1ms</td><td>200ms</td><td>0.4</td><td>100ms</td><td>400</td><td>6</td><td>4000</td><td>1ms</td><td>150ms</td></tr>
+            <tr><td>Synthwave lead</td><td>SAW</td><td>5ms</td><td>300ms</td><td>0.7</td><td>200ms</td><td>1500</td><td>8</td><td>3000</td><td>1ms</td><td>400ms</td></tr>
+            <tr><td>Pad</td><td>SAW</td><td>600ms</td><td>1.2s</td><td>0.85</td><td>1.5s</td><td>2000</td><td>2</td><td>1500</td><td>80ms</td><td>600ms</td></tr>
+            <tr><td>Pluck</td><td>SQR</td><td>1ms</td><td>250ms</td><td>0</td><td>100ms</td><td>800</td><td>5</td><td>5000</td><td>1ms</td><td>200ms</td></tr>
+          </tbody>
+        </table>
+        <p class="muted">Cut/Env in Hz. Q = resonance.</p>
+      </section>
+
+      <p class="muted small">Press <code>Esc</code> or click outside this panel to close.</p>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
