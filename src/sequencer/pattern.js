@@ -36,4 +36,15 @@ export class Pattern {
   clear() {
     this.cells.forEach(row => row.fill(false));
   }
+
+  setLength(numSteps) {
+    if (numSteps === this.numSteps) return;
+    if (numSteps > this.numSteps) {
+      const pad = numSteps - this.numSteps;
+      for (const row of this.cells) for (let i = 0; i < pad; i++) row.push(false);
+    } else {
+      for (const row of this.cells) row.length = numSteps;
+    }
+    this.numSteps = numSteps;
+  }
 }

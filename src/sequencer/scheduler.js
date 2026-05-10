@@ -2,20 +2,26 @@
 // JS timer wakes every SCHEDULE_INTERVAL ms and queues any pattern events that
 // fall inside the next LOOKAHEAD-second window onto the audio thread, so timing
 // fidelity comes from audioContext.currentTime, not setTimeout jitter.
+//
+// `globalStep` is a monotonic 16th-note counter. Each lead track and the drum
+// pattern indexes into its own cells with `globalStep % pattern.numSteps`, so
+// per-track lengths produce polymetric loops (e.g. LEAD A = 8 over LEAD B = 32
+// loops cleanly without sync drift).
 
 const SCHEDULE_INTERVAL_MS = 25;
 const LOOKAHEAD_S = 0.1;
 
 export class Scheduler {
-  constructor(ctx, pattern, voiceManager) {
+  constructor(ctx, leadTracks, drumPattern, drumKit) {
     this.ctx = ctx;
-    this.pattern = pattern;
-    this.voiceManager = voiceManager;
+    this.leadTracks = leadTracks;
+    this.drumPattern = drumPattern || null;
+    this.drumKit = drumKit || null;
     this.bpm = 120;
     this.stepsPerBeat = 4; // 16th notes
-    this.currentStep = 0;
+    this.globalStep = 0;
     this.nextStepTime = 0;
-    this.audibleStep = -1; // updated in real time as steps actually play
+    this.audibleStep = -1; // global step actually sounding now (for live record)
     this.timerId = null;
     this.onStep = null;
   }
@@ -26,7 +32,7 @@ export class Scheduler {
 
   start() {
     if (this.timerId !== null) return;
-    this.currentStep = 0;
+    this.globalStep = 0;
     this.nextStepTime = this.ctx.currentTime + 0.05;
     this._tick();
   }
@@ -37,7 +43,7 @@ export class Scheduler {
       this.timerId = null;
     }
     this.audibleStep = -1;
-    this.voiceManager.allOff();
+    for (const t of this.leadTracks.tracks) t.voiceManager.allOff();
   }
 
   isRunning() {
@@ -52,21 +58,29 @@ export class Scheduler {
     const horizon = this.ctx.currentTime + LOOKAHEAD_S;
     while (this.nextStepTime < horizon) {
       const dur = this._stepDuration();
-      this._scheduleStep(this.currentStep, this.nextStepTime, dur);
+      this._scheduleStep(this.globalStep, this.nextStepTime, dur);
       this.nextStepTime += dur;
-      this.currentStep = (this.currentStep + 1) % this.pattern.numSteps;
+      this.globalStep++;
     }
     this.timerId = setTimeout(() => this._tick(), SCHEDULE_INTERVAL_MS);
   }
 
-  _scheduleStep(stepIdx, when, duration) {
-    const notes = this.pattern.notesAtStep(stepIdx);
-    for (const midi of notes) {
-      this.voiceManager.noteOn(midi, 100, when);
-      this.voiceManager.noteOff(midi, when + duration * 0.9);
+  _scheduleStep(globalStep, when, duration) {
+    for (const track of this.leadTracks.tracks) {
+      const idx = globalStep % track.pattern.numSteps;
+      const notes = track.pattern.notesAtStep(idx);
+      for (const midi of notes) {
+        track.voiceManager.noteOn(midi, 100, when);
+        track.voiceManager.noteOff(midi, when + duration * 0.9);
+      }
+    }
+    if (this.drumPattern && this.drumKit) {
+      const idx = globalStep % this.drumPattern.numSteps;
+      const tracks = this.drumPattern.tracksAtStep(idx);
+      for (const t of tracks) this.drumKit.trigger(t, when);
     }
     const delayMs = Math.max(0, (when - this.ctx.currentTime) * 1000);
-    setTimeout(() => { this.audibleStep = stepIdx; }, delayMs);
-    if (this.onStep) this.onStep(stepIdx, when);
+    setTimeout(() => { this.audibleStep = globalStep; }, delayMs);
+    if (this.onStep) this.onStep(globalStep, when);
   }
 }

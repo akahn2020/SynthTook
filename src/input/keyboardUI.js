@@ -1,11 +1,13 @@
-// On-screen piano + computer-keyboard input. Two octaves: C3 (MIDI 48) to C5 (72).
-// Black keys are absolutely positioned over the white-key strip — avoids the
-// brittle negative-margin overlap pattern.
+// On-screen piano + computer-keyboard input. Four octaves: C2 (MIDI 36) to C6
+// (84), matching the Keystation 49e's range and the lead piano-roll. Black
+// keys are absolutely positioned over the white-key strip — avoids the brittle
+// negative-margin overlap pattern. Key widths must stay in sync with the
+// .white-key / .black-key rules in style.css.
 
-const START_MIDI = 48;   // C3
-const END_MIDI = 72;     // C5
-const WHITE_W = 50;
-const BLACK_W = 32;
+const START_MIDI = 36;   // C2
+const END_MIDI = 84;     // C6
+const WHITE_W = 35;
+const BLACK_W = 22;
 
 const BLACK_NOTES = new Set([1, 3, 6, 8, 10]);
 function isBlack(midi) { return BLACK_NOTES.has(midi % 12); }
