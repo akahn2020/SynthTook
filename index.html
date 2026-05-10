@@ -20,12 +20,22 @@
       </div>
     </header>
 
+    <canvas id="visualizer"></canvas>
+
     <section id="keyboard-section">
       <div id="keyboard"><div class="key-area"></div></div>
       <div class="hint">play with mouse, MIDI device, or keys: a w s e d f t g y h u j k</div>
     </section>
 
-    <section id="controls-section"></section>
+    <section id="controls-section">
+      <div id="lead-controls"></div>
+      <div id="arp-controls"></div>
+      <div id="drum-controls"></div>
+    </section>
+
+    <section id="mixer-section"></section>
+
+    <section id="slots-section"></section>
 
     <section id="sequencer-section">
       <div id="transport">
@@ -35,7 +45,10 @@
         <button id="clear-btn">CLEAR</button>
         <label>BPM <input id="bpm-input" type="number" value="120" min="40" max="240" step="1" /></label>
       </div>
+      <div id="lead-tabs"></div>
       <div id="grid"></div>
+      <div id="drum-bar"></div>
+      <div id="drum-grid"></div>
     </section>
   </main>
 
@@ -47,7 +60,7 @@
 
       <section>
         <h3>1 · GET STARTED</h3>
-        <p>Click <strong>POWER ON</strong>. Browsers block audio until you click something, so this isn't optional. Plug in a USB MIDI keyboard before or after &mdash; the device dropdown updates live.</p>
+        <p>Click <strong>POWER ON</strong>. Browsers block audio until you click something, so this isn't optional. Plug in a USB MIDI keyboard before or after &mdash; the device dropdown updates live. The strip at the top is the spectrum analyzer, lighting up when sound plays. <strong>Your pattern, drums, synth settings, and BPM auto-save</strong> &mdash; refresh and they come back.</p>
       </section>
 
       <section>
@@ -61,21 +74,29 @@
 
       <section>
         <h3>3 · MAKE A SEQUENCE</h3>
-        <p>The grid below the controls is a piano roll. Rows = pitch (C5 top to C3 bottom), columns = 16 steps. Click any cell to place a note. Multiple cells in the same column = a chord. Set BPM, hit <strong>&#9654; PLAY</strong>. The cyan column highlights the current step. You can play live on the keyboard at the same time the sequence runs. <strong>CLEAR</strong> wipes the pattern.</p>
+        <p>The big grid is the lead piano roll. Rows = pitch (C6 top to C2 bottom &mdash; 4 octaves, matching the Keystation 49e), columns = 16 steps. The viewport scrolls vertically; it opens centered near middle C. Click any cell to place a note. Multiple cells in the same column = a chord. Set BPM, hit <strong>&#9654; PLAY</strong>. The cyan column highlights the current step. You can play live on the keyboard at the same time the sequence runs. <strong>CLEAR</strong> wipes every lead track plus drums.</p>
+        <p>The <strong>LEAD A / LEAD B</strong> tabs above the grid select which lead track you're editing. Each track keeps its own pattern and its own synth patch (oscillator, ADSR, filter, filter env), so you can layer e.g. a saw bass on A with a square pluck on B and play them simultaneously. The track tabs only swap the editing focus &mdash; both tracks always play during PLAY.</p>
+        <p>The <strong>LEN</strong> selector (right side of the lead tabs, and again above the drum grid) sets each pattern's length independently &mdash; 8, 16, or 32 steps. Different lengths produce polymetric loops: e.g. an 8-step lead bass over a 16-step drum groove will line up every 16 steps. Shrinking a pattern truncates its tail; growing it pads with empty steps.</p>
       </section>
 
       <section>
-        <h3>4 · RECORD FROM THE KEYBOARD</h3>
+        <h3>4 · PROGRAM THE DRUMS</h3>
+        <p>The 3-row grid below the lead is your drum machine. Tracks: <strong>KICK</strong> (sine sweep), <strong>SNARE</strong> (filtered noise + tone body), <strong>HAT</strong> (high-pass noise burst). Click a cell to toggle a hit. Drums play simultaneously with the lead synth and follow the same BPM. Standard four-on-the-floor: kicks on 1, 5, 9, 13; snare on 5, 13; hats on every other step.</p>
+        <p>The <strong>DRUM SOUND</strong> panel in the controls row lets you tune each drum's timbre. Pick KICK / SNARE / HAT, then drag the sliders &mdash; pitch and decay for the kick, body and noise mix for the snare, brightness and decay for the hat. Changes apply to the next hit, so tweak while a pattern is looping.</p>
+      </section>
+
+      <section>
+        <h3>5 · RECORD FROM THE KEYBOARD</h3>
         <p>Click <strong>&#9679; REC</strong> (it pulses magenta when armed). Two ways to record:</p>
         <ul>
           <li><strong>Step record</strong> &mdash; sequencer stopped. A dashed magenta outline marks the cursor step. Play a note (or chord, within ~80ms) on your MIDI keyboard / on-screen keys / computer keys; it lands on that step and the cursor advances. Press <code>Space</code> or <code>&rarr;</code> to skip a step (rest).</li>
           <li><strong>Live record</strong> &mdash; press PLAY first, then arm REC. Notes you play are written onto whichever step is sounding right now. Loop the pattern and overdub.</li>
         </ul>
-        <p>Notes are recorded only if their pitch falls in the C3&ndash;C5 piano-roll range. Click REC again to disarm. The sound your shaped synth is making at the moment of recording is what plays back &mdash; but you can tweak the controls afterward and the same notes will sound different.</p>
+        <p>Notes are recorded only if their pitch falls in the C2&ndash;C6 piano-roll range. Click REC again to disarm. The sound your shaped synth is making at the moment of recording is what plays back &mdash; but you can tweak the controls afterward and the same notes will sound different.</p>
       </section>
 
       <section>
-        <h3>5 · SHAPE THE SOUND</h3>
+        <h3>6 · SHAPE THE SOUND</h3>
         <ul>
           <li><strong>OSCILLATOR</strong> &mdash; SIN (pure tone), TRI (mellow), SQR (hollow / 8-bit), SAW (bright, buzzy synthwave default). Switch live, even mid-note.</li>
           <li><strong>AMP ENVELOPE</strong> &mdash; how loudness shapes a note. <em>Attack</em> = fade-in. <em>Decay</em> = drop from peak. <em>Sustain</em> = level held while the key is down. <em>Release</em> = fade-out after letting go.</li>
@@ -85,7 +106,22 @@
       </section>
 
       <section>
-        <h3>6 · PATCHES TO TRY</h3>
+        <h3>7 · ARPEGGIATOR</h3>
+        <p>Hold a chord, get a programmed pattern. Flip <strong>ON</strong> in the ARP panel and play two or more notes &mdash; the synth cycles through them at the chosen rate. Modes: <em>UP</em> (low to high), <em>DN</em> (high to low), <em>UD</em> (up then back down), <em>RND</em> (random pick each tick). <em>RATE</em> sets the subdivision of the BPM (1/4 to 1/32). <em>GATE</em> sets how long each arp note holds before releasing &mdash; short for staccato pulses, long for legato runs. While REC is armed, arpeggiated notes record into the lead pattern just like normal keypresses, so you can lay down riffs by holding chords.</p>
+      </section>
+
+      <section>
+        <h3>8 · MIXER</h3>
+        <p>Five faders control level for each track plus the master output: <strong>LEAD</strong> (synth), <strong>KICK</strong>, <strong>SNARE</strong>, <strong>HAT</strong>, <strong>MASTER</strong> (everything before the speakers). Drag a fader to set the channel's volume. Click <strong>MUTE</strong> to silence a channel without losing its level &mdash; you can even drag the slider while muted to "pre-stage" a level for unmute. Useful for soloing the synth while you record a melody, or pulling drums down while you tweak filter sweeps.</p>
+      </section>
+
+      <section>
+        <h3>9 · PATTERN SLOTS</h3>
+        <p>Eight named save slots, separate from the autosave that always runs. Click a filled slot to <strong>load</strong> it (page reloads with the loaded session). Click <strong>+ SAVE TO…</strong>, then click any slot, and you'll be prompted to name the snapshot before it's stored. Click <strong>CLEAR…</strong> then a filled slot to delete it. Slot data persists across browser refreshes; loading replaces your current session entirely (lead tracks, drums, mixer, arp, drum sound, BPM).</p>
+      </section>
+
+      <section>
+        <h3>10 · PATCHES TO TRY</h3>
         <table class="patches">
           <thead>
             <tr><th>Patch</th><th>Wave</th><th>A</th><th>D</th><th>S</th><th>R</th><th>Cut</th><th>Q</th><th>Env</th><th>F.A</th><th>F.D</th></tr>

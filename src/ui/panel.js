@@ -1,5 +1,16 @@
+// Builds the transport, lead-track tabs (with per-track length selector), the
+// lead piano-roll grid, the drum length selector, and the drum grid.
+// Subscribes to leadTracks for active-track changes so the visible lead grid
+// always reflects the currently selected track.
+//
+// Lead grid and drum grid each have their own play-cursor pointer because
+// patterns may have different lengths (polymetric playback). The scheduler
+// emits a monotonic globalStep; each grid maps it through `% numSteps`.
+
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const BLACK_PCS = new Set([1, 3, 6, 8, 10]);
+
+const LENGTH_OPTIONS = [8, 16, 32];
 
 function noteName(midi) {
   return NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1);
@@ -8,77 +19,236 @@ function isBlack(midi) {
   return BLACK_PCS.has(midi % 12);
 }
 
+function buildLengthSelector(getCurrent, onPick) {
+  const wrap = document.createElement('div');
+  wrap.className = 'length-selector';
+  const label = document.createElement('span');
+  label.className = 'length-label';
+  label.textContent = 'LEN';
+  wrap.appendChild(label);
+  const buttons = [];
+  for (const len of LENGTH_OPTIONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'len-btn';
+    btn.textContent = String(len);
+    btn.dataset.len = String(len);
+    btn.addEventListener('click', () => onPick(len));
+    wrap.appendChild(btn);
+    buttons.push(btn);
+  }
+  function refresh() {
+    const cur = getCurrent();
+    for (const b of buttons) b.classList.toggle('active', Number(b.dataset.len) === cur);
+  }
+  refresh();
+  return { el: wrap, refresh };
+}
+
 export function initPanel({
-  pattern, scheduler, recorder,
-  gridContainer, playBtn, stopBtn, recBtn, clearBtn, bpmInput,
+  leadTracks, drumPattern, scheduler, recorder,
+  leadTabsContainer, gridContainer, drumBarContainer, drumGridContainer,
+  playBtn, stopBtn, recBtn, clearBtn, bpmInput,
+  triggerSave,
 }) {
-  gridContainer.innerHTML = '';
-  gridContainer.style.gridTemplateColumns = `40px repeat(${pattern.numSteps}, 1fr)`;
+  const save = triggerSave || (() => {});
 
-  const cellEls = []; // cellEls[row][col]
-  const colCells = Array.from({ length: pattern.numSteps }, () => []);
+  // --- Lead-track tabs + lead length selector ---
+  const tabButtons = [];
+  let leadLenSelector = null;
 
-  for (let r = 0; r < pattern.pitches.length; r++) {
-    const midi = pattern.pitches[r];
-    const black = isBlack(midi);
+  function buildLeadTabs() {
+    leadTabsContainer.innerHTML = '';
+    tabButtons.length = 0;
 
-    const label = document.createElement('div');
-    label.className = 'roll-label' + (black ? ' black-row' : '');
-    label.textContent = noteName(midi);
-    gridContainer.appendChild(label);
+    const tabsWrap = document.createElement('div');
+    tabsWrap.className = 'track-tabs';
+    leadTabsContainer.appendChild(tabsWrap);
 
-    const rowEls = [];
-    for (let c = 0; c < pattern.numSteps; c++) {
-      const cell = document.createElement('div');
-      let cls = 'roll-cell';
-      if (black) cls += ' black-row';
-      if (c % 4 === 0) cls += ' beat-start';
-      cell.className = cls;
-      cell.addEventListener('click', () => {
-        const on = pattern.toggle(r, c);
-        cell.classList.toggle('on', on);
-      });
-      gridContainer.appendChild(cell);
-      rowEls.push(cell);
-      colCells[c].push(cell);
+    for (let i = 0; i < leadTracks.tracks.length; i++) {
+      const t = leadTracks.tracks[i];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'lead-tab' + (i === leadTracks.activeIndex ? ' active' : '');
+      btn.textContent = t.name;
+      btn.addEventListener('click', () => leadTracks.setActive(i));
+      tabsWrap.appendChild(btn);
+      tabButtons.push(btn);
     }
-    cellEls.push(rowEls);
+
+    leadLenSelector = buildLengthSelector(
+      () => leadTracks.active().pattern.numSteps,
+      (len) => {
+        leadTracks.active().pattern.setLength(len);
+        rebuildLeadGrid();
+        recorder.refreshCursor();
+        leadLenSelector.refresh();
+        save();
+      }
+    );
+    leadTabsContainer.appendChild(leadLenSelector.el);
+  }
+  buildLeadTabs();
+
+  // --- Lead piano-roll grid (rebuilt when active track changes or length changes) ---
+  let leadCellEls = [];
+  let leadColCells = [];
+  let prevLeadPlayStep = -1;
+  let prevRecStep = -1;
+
+  function rebuildLeadGrid() {
+    const pattern = leadTracks.active().pattern;
+    gridContainer.innerHTML = '';
+    gridContainer.style.gridTemplateColumns = `40px repeat(${pattern.numSteps}, 1fr)`;
+    leadCellEls = [];
+    leadColCells = Array.from({ length: pattern.numSteps }, () => []);
+
+    for (let r = 0; r < pattern.pitches.length; r++) {
+      const midi = pattern.pitches[r];
+      const black = isBlack(midi);
+
+      const label = document.createElement('div');
+      label.className = 'roll-label' + (black ? ' black-row' : '');
+      label.textContent = noteName(midi);
+      gridContainer.appendChild(label);
+
+      const rowEls = [];
+      for (let c = 0; c < pattern.numSteps; c++) {
+        const cell = document.createElement('div');
+        let cls = 'roll-cell';
+        if (black) cls += ' black-row';
+        if (c % 4 === 0) cls += ' beat-start';
+        if (pattern.isOn(r, c)) cls += ' on';
+        cell.className = cls;
+        cell.addEventListener('click', () => {
+          const on = pattern.toggle(r, c);
+          cell.classList.toggle('on', on);
+          save();
+        });
+        gridContainer.appendChild(cell);
+        rowEls.push(cell);
+        leadColCells[c].push(cell);
+      }
+      leadCellEls.push(rowEls);
+    }
+
+    const c4Row = pattern.pitches.indexOf(60);
+    if (c4Row >= 0 && leadCellEls[c4Row]?.[0]) {
+      const cell = leadCellEls[c4Row][0];
+      gridContainer.scrollTop = cell.offsetTop - gridContainer.clientHeight / 2 + cell.offsetHeight / 2;
+    }
+
+    prevLeadPlayStep = -1;
+    prevRecStep = -1;
+  }
+  rebuildLeadGrid();
+
+  // --- Drum length selector + drum grid ---
+  let drumCellEls = [];
+  let drumColCells = [];
+  let prevDrumPlayStep = -1;
+  let drumLenSelector = null;
+
+  function buildDrumBar() {
+    drumBarContainer.innerHTML = '';
+    drumLenSelector = buildLengthSelector(
+      () => drumPattern.numSteps,
+      (len) => {
+        drumPattern.setLength(len);
+        rebuildDrumGrid();
+        drumLenSelector.refresh();
+        save();
+      }
+    );
+    drumBarContainer.appendChild(drumLenSelector.el);
   }
 
-  let prevPlayStep = -1;
-  scheduler.onStep = (stepIdx, when) => {
+  function rebuildDrumGrid() {
+    drumGridContainer.innerHTML = '';
+    drumGridContainer.style.gridTemplateColumns = `40px repeat(${drumPattern.numSteps}, 1fr)`;
+    drumCellEls = [];
+    drumColCells = Array.from({ length: drumPattern.numSteps }, () => []);
+
+    for (let t = 0; t < drumPattern.numTracks; t++) {
+      const label = document.createElement('div');
+      label.className = 'drum-label';
+      label.textContent = drumPattern.labels[t];
+      drumGridContainer.appendChild(label);
+
+      const rowEls = [];
+      for (let c = 0; c < drumPattern.numSteps; c++) {
+        const cell = document.createElement('div');
+        let cls = 'drum-cell';
+        if (c % 4 === 0) cls += ' beat-start';
+        if (drumPattern.isOn(t, c)) cls += ' on';
+        cell.className = cls;
+        cell.addEventListener('click', () => {
+          const on = drumPattern.toggle(t, c);
+          cell.classList.toggle('on', on);
+          save();
+        });
+        drumGridContainer.appendChild(cell);
+        rowEls.push(cell);
+        drumColCells[c].push(cell);
+      }
+      drumCellEls.push(rowEls);
+    }
+    prevDrumPlayStep = -1;
+  }
+  buildDrumBar();
+  rebuildDrumGrid();
+
+  function updateColumnCursor(colCells, prevStep, stepIdx, cls) {
+    if (prevStep >= 0 && colCells[prevStep]) {
+      for (const el of colCells[prevStep]) el.classList.remove(cls);
+    }
+    if (stepIdx >= 0 && colCells[stepIdx]) {
+      for (const el of colCells[stepIdx]) el.classList.add(cls);
+    }
+  }
+
+  scheduler.onStep = (globalStep, when) => {
     const delayMs = Math.max(0, (when - scheduler.ctx.currentTime) * 1000);
     setTimeout(() => {
-      if (prevPlayStep >= 0) {
-        for (const el of colCells[prevPlayStep]) el.classList.remove('current');
-      }
-      for (const el of colCells[stepIdx]) el.classList.add('current');
-      prevPlayStep = stepIdx;
+      const leadStep = globalStep % leadTracks.active().pattern.numSteps;
+      const drumStep = globalStep % drumPattern.numSteps;
+      updateColumnCursor(leadColCells, prevLeadPlayStep, leadStep, 'current');
+      prevLeadPlayStep = leadStep;
+      updateColumnCursor(drumColCells, prevDrumPlayStep, drumStep, 'current');
+      prevDrumPlayStep = drumStep;
     }, delayMs);
   };
 
-  let prevRecStep = -1;
   recorder.onCursorMove = (step) => {
-    if (prevRecStep >= 0 && prevRecStep < pattern.numSteps) {
-      for (const el of colCells[prevRecStep]) el.classList.remove('rec-current');
-    }
-    if (step >= 0 && step < pattern.numSteps) {
-      for (const el of colCells[step]) el.classList.add('rec-current');
-    }
+    updateColumnCursor(leadColCells, prevRecStep, step, 'rec-current');
     prevRecStep = step;
   };
 
-  recorder.onNoteRecorded = (row, col) => {
-    const cell = cellEls[row]?.[col];
+  recorder.onNoteRecorded = (trackIdx, row, col) => {
+    if (trackIdx !== leadTracks.activeIndex) return;
+    const cell = leadCellEls[row]?.[col];
     if (!cell) return;
     cell.classList.add('on');
     cell.classList.add('flash');
     setTimeout(() => cell.classList.remove('flash'), 180);
+    save();
   };
 
-  const clearPlayCursor = () => {
-    for (const col of colCells) for (const el of col) el.classList.remove('current');
-    prevPlayStep = -1;
+  // --- Active-track change → repaint tabs + lead grid + length selector ---
+  leadTracks.onChange(() => {
+    for (let i = 0; i < tabButtons.length; i++) {
+      tabButtons[i].classList.toggle('active', i === leadTracks.activeIndex);
+    }
+    rebuildLeadGrid();
+    leadLenSelector.refresh();
+    recorder.refreshCursor();
+  });
+
+  const clearPlayCursors = () => {
+    updateColumnCursor(leadColCells, prevLeadPlayStep, -1, 'current');
+    prevLeadPlayStep = -1;
+    updateColumnCursor(drumColCells, prevDrumPlayStep, -1, 'current');
+    prevDrumPlayStep = -1;
   };
 
   playBtn.addEventListener('click', () => {
@@ -89,7 +259,7 @@ export function initPanel({
   });
   stopBtn.addEventListener('click', () => {
     scheduler.stop();
-    clearPlayCursor();
+    clearPlayCursors();
     recorder.refreshCursor();
   });
 
@@ -99,18 +269,18 @@ export function initPanel({
   });
 
   clearBtn.addEventListener('click', () => {
-    pattern.clear();
-    for (const row of cellEls) for (const cell of row) cell.classList.remove('on');
+    for (const t of leadTracks.tracks) t.pattern.clear();
+    drumPattern.clear();
+    rebuildLeadGrid();
+    rebuildDrumGrid();
     recorder.resetCursor();
+    save();
   });
 
   document.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement) return;
     if (!recorder.armed || scheduler.isRunning()) return;
-    if (e.code === 'Space') {
-      e.preventDefault();
-      recorder.advance();
-    } else if (e.code === 'ArrowRight') {
+    if (e.code === 'Space' || e.code === 'ArrowRight') {
       e.preventDefault();
       recorder.advance();
     }
@@ -118,7 +288,10 @@ export function initPanel({
 
   const applyBpm = () => {
     const v = Number(bpmInput.value);
-    if (Number.isFinite(v) && v >= 40 && v <= 240) scheduler.setBpm(v);
+    if (Number.isFinite(v) && v >= 40 && v <= 240) {
+      scheduler.setBpm(v);
+      save();
+    }
   };
   bpmInput.addEventListener('input', applyBpm);
   applyBpm();
