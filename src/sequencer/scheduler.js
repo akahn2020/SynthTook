@@ -24,10 +24,19 @@ export class Scheduler {
     this.audibleStep = -1; // global step actually sounding now (for live record)
     this.timerId = null;
     this.onStep = null;
+    // Semitone offset applied to lead-track notes at schedule time. Set by the
+    // Transposer when live-transpose mode is on; drums are unaffected. The
+    // ~LOOKAHEAD_S lookahead means a change here takes effect at the next step
+    // that hasn't been scheduled yet — typically <100ms latency.
+    this.transposeOffset = 0;
   }
 
   setBpm(bpm) {
     this.bpm = bpm;
+  }
+
+  setTransposeOffset(semitones) {
+    this.transposeOffset = semitones | 0;
   }
 
   start() {
@@ -66,12 +75,16 @@ export class Scheduler {
   }
 
   _scheduleStep(globalStep, when, duration) {
+    // Capture once so both the noteOn and the matching noteOff use the same
+    // offset even if the Transposer updates mid-step.
+    const xpose = this.transposeOffset;
     for (const track of this.leadTracks.tracks) {
       const idx = globalStep % track.pattern.numSteps;
       const notes = track.pattern.notesAtStep(idx);
       for (const midi of notes) {
-        track.voiceManager.noteOn(midi, 100, when);
-        track.voiceManager.noteOff(midi, when + duration * 0.9);
+        const out = midi + xpose;
+        track.voiceManager.noteOn(out, 100, when);
+        track.voiceManager.noteOff(out, when + duration * 0.9);
       }
     }
     if (this.drumPattern && this.drumKit) {

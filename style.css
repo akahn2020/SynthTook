@@ -188,6 +188,56 @@ input[type="number"] { width: 70px; cursor: text; }
   margin-left: auto;
   font-size: 10px;
 }
+.transpose-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+.transpose-bar .transpose-label {
+  color: var(--neon-2);
+  text-shadow: 0 0 6px rgba(255,0,212,0.5);
+}
+.transpose-toggle {
+  background: #050308;
+  border: 1px solid var(--neon-2);
+  color: var(--neon-2);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 2px;
+  line-height: 1;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  min-width: 56px;
+}
+.transpose-toggle:hover {
+  background: rgba(255,0,212,0.15);
+  box-shadow: 0 0 8px rgba(255,0,212,0.4);
+}
+.transpose-toggle.active {
+  background: var(--neon-2);
+  color: #050308;
+  box-shadow: 0 0 10px var(--neon-2);
+}
+.transpose-readout {
+  color: var(--text);
+  min-width: 160px;
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+.transpose-bar.enabled .transpose-readout {
+  color: var(--neon-2);
+  text-shadow: 0 0 4px rgba(255,0,212,0.4);
+}
+.transpose-hint {
+  margin-left: auto;
+  font-size: 10px;
+}
 #keyboard {
   position: relative;
   height: 200px;
