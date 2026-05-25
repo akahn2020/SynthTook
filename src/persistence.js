@@ -1,17 +1,20 @@
-// Auto-save / auto-restore of the current session (lead tracks, drum pattern,
-// global params: mixer / arp / drumParams, BPM, active track) to localStorage.
-// Debounced so rapid slider drags don't hit storage on every frame.
+// Persistence adapter. In Electron, reads/writes JSON files via the IPC bridge
+// exposed at window.synthtookFS. In a plain browser (dev via http-server), falls
+// back to localStorage so the same code path keeps working.
 //
-// Pattern slots (1–8) live alongside the autosave session under a separate
-// key. Loading a slot writes its snapshot into the autosave key and reloads
-// the page so the standard restore path picks it up — avoids manually
-// re-rendering every UI surface.
+// All public functions are async — the browser fallback resolves synchronously
+// but still returns promises so call sites don't have to branch on environment.
+//
+// Pattern slots: 1–8, one JSON file per slot on disk; a single packed JSON blob
+// in localStorage when in browser mode.
 
-export const AUTOSAVE_KEY = 'synthtook:session';
 export const AUTOSAVE_VERSION = 4;
-const SLOTS_KEY = 'synthtook:slots';
 const SLOTS_VERSION = 1;
 const NUM_SLOTS = 8;
+const AUTOSAVE_KEY = 'synthtook:session';
+const SLOTS_KEY    = 'synthtook:slots';
+
+const fs = (typeof window !== 'undefined' && window.synthtookFS) || null;
 
 function buildPersistedSnapshot(snapshot) {
   const data = { version: AUTOSAVE_VERSION, ...snapshot };
@@ -24,20 +27,42 @@ function buildPersistedSnapshot(snapshot) {
   return data;
 }
 
-export function saveState(snapshot) {
+// --- Session (autosave) ---
+
+export async function saveState(snapshot) {
   try {
     const data = buildPersistedSnapshot(snapshot);
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+    if (fs) await fs.writeSession(data);
+    else    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
   } catch (e) {
     console.warn('SynthTook: save failed', e);
   }
 }
 
-export function loadState() {
+export async function loadState() {
   try {
-    const raw = localStorage.getItem(AUTOSAVE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
+    let data = null;
+    if (fs) {
+      data = await fs.readSession();
+      // One-time migration: lift any pre-existing localStorage session into the
+      // disk file so users who previously ran the web build keep their session
+      // on first Electron launch.
+      if (!data && typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(AUTOSAVE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.version === AUTOSAVE_VERSION) {
+            await fs.writeSession(parsed);
+            localStorage.removeItem(AUTOSAVE_KEY);
+            data = parsed;
+          }
+        }
+      }
+    } else {
+      const raw = localStorage.getItem(AUTOSAVE_KEY);
+      data = raw ? JSON.parse(raw) : null;
+    }
+    if (!data) return null;
     if (data.version !== AUTOSAVE_VERSION) return null;
     return data;
   } catch (e) {
@@ -46,53 +71,96 @@ export function loadState() {
   }
 }
 
-export function clearSavedState() {
-  try { localStorage.removeItem(AUTOSAVE_KEY); } catch {}
+export async function clearSavedState() {
+  try {
+    if (fs) await fs.clearSession();
+    else    localStorage.removeItem(AUTOSAVE_KEY);
+  } catch {}
 }
 
-function readSlots() {
+// Used by the slot loader and the factory-preset loader: install a previously
+// saved snapshot into the session slot, then the caller reloads the page so the
+// standard restore path in main.js repopulates every UI surface.
+export async function replaceSession(data) {
+  if (fs) await fs.writeSession(data);
+  else    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+}
+
+// --- Pattern slots ---
+
+function emptySlots() { return new Array(NUM_SLOTS).fill(null); }
+
+function readSlotsFromLocalStorage() {
   try {
     const raw = localStorage.getItem(SLOTS_KEY);
-    if (!raw) return new Array(NUM_SLOTS).fill(null);
+    if (!raw) return emptySlots();
     const parsed = JSON.parse(raw);
-    if (parsed.version !== SLOTS_VERSION) return new Array(NUM_SLOTS).fill(null);
+    if (parsed.version !== SLOTS_VERSION) return emptySlots();
     const slots = parsed.slots ?? [];
-    const out = new Array(NUM_SLOTS).fill(null);
+    const out = emptySlots();
     for (let i = 0; i < NUM_SLOTS; i++) out[i] = slots[i] ?? null;
     return out;
   } catch {
-    return new Array(NUM_SLOTS).fill(null);
+    return emptySlots();
   }
 }
 
-function writeSlots(slots) {
+function writeSlotsToLocalStorage(slots) {
   localStorage.setItem(SLOTS_KEY, JSON.stringify({ version: SLOTS_VERSION, slots }));
 }
 
-export function listSlots() {
-  return readSlots();
+export async function listSlots() {
+  if (fs) {
+    const raw = await fs.listSlots();
+    const out = emptySlots();
+    for (let i = 0; i < NUM_SLOTS; i++) out[i] = raw?.[i] ?? null;
+
+    // One-time slot migration from localStorage on first Electron launch.
+    if (out.every(s => s === null) && typeof localStorage !== 'undefined') {
+      const lsSlots = readSlotsFromLocalStorage();
+      if (lsSlots.some(s => s !== null)) {
+        for (let i = 0; i < NUM_SLOTS; i++) {
+          if (lsSlots[i]) await fs.writeSlot(i, lsSlots[i]);
+        }
+        localStorage.removeItem(SLOTS_KEY);
+        return lsSlots;
+      }
+    }
+    return out;
+  }
+  return readSlotsFromLocalStorage();
 }
 
-export function saveSlot(index, snapshot, name) {
-  const slots = readSlots();
-  slots[index] = {
+export async function saveSlot(index, snapshot, name) {
+  const slot = {
     name: name || `Slot ${index + 1}`,
     savedAt: Date.now(),
     data: buildPersistedSnapshot(snapshot),
   };
-  writeSlots(slots);
+  if (fs) {
+    await fs.writeSlot(index, slot);
+  } else {
+    const slots = readSlotsFromLocalStorage();
+    slots[index] = slot;
+    writeSlotsToLocalStorage(slots);
+  }
 }
 
-export function loadSlot(index) {
-  const slot = readSlots()[index];
+export async function loadSlot(index) {
+  const slots = await listSlots();
+  const slot = slots[index];
   if (!slot || slot.data?.version !== AUTOSAVE_VERSION) return null;
   return slot;
 }
 
-export function clearSlot(index) {
-  const slots = readSlots();
-  slots[index] = null;
-  writeSlots(slots);
+export async function clearSlot(index) {
+  if (fs) {
+    await fs.clearSlot(index);
+  } else {
+    const slots = readSlotsFromLocalStorage();
+    slots[index] = null;
+    writeSlotsToLocalStorage(slots);
+  }
 }
 
 export function debounce(fn, ms = 250) {

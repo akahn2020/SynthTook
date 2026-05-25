@@ -7,7 +7,15 @@ Thumbs.db
 .idea/
 *.swp
 
-# Node (future-proof)
+# Node
 node_modules/
 package-lock.json
 .npm/
+
+# Electron build output
+dist/
+out/
+
+# Local tooling state
+.claude/
+.verify/
