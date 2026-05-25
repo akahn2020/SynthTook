@@ -9,9 +9,18 @@ export async function initMidiInput(voiceManager, dropdownEl) {
     return;
   }
 
+  // Some embeddings (headless / iframes / Edge without focus) stall the
+  // permission prompt forever instead of rejecting. Race against a short
+  // timeout so the rest of POWER ON init isn't blocked.
   let access;
   try {
-    access = await navigator.requestMIDIAccess({ sysex: false });
+    access = await Promise.race([
+      navigator.requestMIDIAccess({ sysex: false }),
+      new Promise((_, reject) => setTimeout(
+        () => reject(Object.assign(new Error('MIDI access timed out'), { name: 'TimeoutError' })),
+        3000
+      )),
+    ]);
   } catch (err) {
     dropdownEl.innerHTML = `<option>MIDI access denied: ${err.name}</option>`;
     dropdownEl.disabled = true;

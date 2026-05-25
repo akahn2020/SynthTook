@@ -8,13 +8,13 @@
 // re-rendering every UI surface.
 
 export const AUTOSAVE_KEY = 'synthtook:session';
+export const AUTOSAVE_VERSION = 4;
 const SLOTS_KEY = 'synthtook:slots';
-const VERSION = 4;
 const SLOTS_VERSION = 1;
 const NUM_SLOTS = 8;
 
 function buildPersistedSnapshot(snapshot) {
-  const data = { version: VERSION, ...snapshot };
+  const data = { version: AUTOSAVE_VERSION, ...snapshot };
   if (snapshot.drumPattern) {
     data.drumPattern = { cells: snapshot.drumPattern.cells.map(row => row.slice()) };
   }
@@ -38,7 +38,7 @@ export function loadState() {
     const raw = localStorage.getItem(AUTOSAVE_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    if (data.version !== VERSION) return null;
+    if (data.version !== AUTOSAVE_VERSION) return null;
     return data;
   } catch (e) {
     console.warn('SynthTook: load failed', e);
@@ -85,7 +85,7 @@ export function saveSlot(index, snapshot, name) {
 
 export function loadSlot(index) {
   const slot = readSlots()[index];
-  if (!slot || slot.data?.version !== VERSION) return null;
+  if (!slot || slot.data?.version !== AUTOSAVE_VERSION) return null;
   return slot;
 }
 

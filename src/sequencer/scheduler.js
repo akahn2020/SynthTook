@@ -79,12 +79,18 @@ export class Scheduler {
     // offset even if the Transposer updates mid-step.
     const xpose = this.transposeOffset;
     for (const track of this.leadTracks.tracks) {
-      const idx = globalStep % track.pattern.numSteps;
-      const notes = track.pattern.notesAtStep(idx);
-      for (const midi of notes) {
-        const out = midi + xpose;
+      const pattern = track.pattern;
+      const idx = globalStep % pattern.numSteps;
+      // Walk every row so we can pick up tie extents per pitch. Only 'on' cells
+      // trigger here — 'tied' cells are absorbed into the prior 'on' via
+      // tieExtent and produce no event of their own.
+      for (let r = 0; r < pattern.cells.length; r++) {
+        if (pattern.cells[r][idx] !== 'on') continue;
+        const out = pattern.pitches[r] + xpose;
+        const tied = pattern.tieExtent(r, idx); // # of 'tied' steps following
         track.voiceManager.noteOn(out, 100, when);
-        track.voiceManager.noteOff(out, when + duration * 0.9);
+        // Gate the original step at 0.9; each tied step extends gate by 1 step.
+        track.voiceManager.noteOff(out, when + duration * (0.9 + tied));
       }
     }
     if (this.drumPattern && this.drumKit) {

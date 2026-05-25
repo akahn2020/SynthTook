@@ -16,6 +16,7 @@ import { initHelp } from './ui/help.js';
 import { initVisualizer } from './ui/visualizer.js';
 import { initMixer, applyMixerToGains } from './ui/mixer.js';
 import { initSlots } from './ui/slots.js';
+import { initPresetModal } from './ui/presetModal.js';
 import { initTransposeBar } from './ui/transposeBar.js';
 import { saveState, loadState, debounce } from './persistence.js';
 
@@ -69,8 +70,11 @@ powerBtn.addEventListener('click', async () => {
   initVisualizer(ctx, masterGain, document.getElementById('visualizer'));
 
   // Build pitches once, shared across all lead tracks (same range, same grid layout).
+  // Grid spans C6 down to C1 (61 rows). Keystation 49e covers C2-C6; lower rows
+  // are reachable via the on-screen grid, presets, and computer-keyboard octave
+  // shift for sub-bass content.
   const pitches = [];
-  for (let n = 84; n >= 36; n--) pitches.push(n); // C6 down to C2 (matches Keystation 49e)
+  for (let n = 84; n >= 24; n--) pitches.push(n);
 
   const leadTrackDefs = [
     { name: 'LEAD A' },
@@ -156,7 +160,11 @@ powerBtn.addEventListener('click', async () => {
           }
           for (let r = 0; r < tracks[i].pattern.cells.length; r++) {
             for (let c = 0; c < tracks[i].pattern.cells[r].length; c++) {
-              tracks[i].pattern.cells[r][c] = !!cells[r]?.[c];
+              const v = cells[r]?.[c];
+              // Migrate legacy bool cells (pre-tie) → 'on' / null. Pass new
+              // enum values through unchanged.
+              tracks[i].pattern.cells[r][c] =
+                v === 'tied' ? 'tied' : (v ? 'on' : null);
             }
           }
         }
@@ -242,9 +250,12 @@ powerBtn.addEventListener('click', async () => {
     triggerSave,
   });
 
+  const presetModal = initPresetModal();
+
   initSlots({
     container: document.getElementById('slots-section'),
     buildSnapshot,
+    openPresetModal: presetModal.show,
   });
 
   initPanel({

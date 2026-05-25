@@ -19,7 +19,7 @@ function formatTimestamp(ms) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function initSlots({ container, buildSnapshot }) {
+export function initSlots({ container, buildSnapshot, openPresetModal }) {
   let mode = 'load'; // 'load' | 'save' | 'clear'
 
   function render() {
@@ -82,6 +82,15 @@ export function initSlots({ container, buildSnapshot }) {
       render();
     });
     controls.appendChild(clearBtn);
+
+    if (openPresetModal) {
+      const presetsBtn = document.createElement('button');
+      presetsBtn.type = 'button';
+      presetsBtn.className = 'slot-mode-btn presets';
+      presetsBtn.textContent = '★ PRESETS…';
+      presetsBtn.addEventListener('click', openPresetModal);
+      controls.appendChild(presetsBtn);
+    }
 
     const hint = document.createElement('span');
     hint.className = 'slots-hint';
