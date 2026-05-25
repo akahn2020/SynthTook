@@ -142,6 +142,52 @@ input[type="number"] { width: 70px; cursor: text; }
 /* --- Keyboard --- */
 
 #keyboard-section { margin-bottom: 28px; }
+.octave-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+.octave-bar .octave-label {
+  color: var(--neon);
+  text-shadow: 0 0 6px rgba(0,255,255,0.5);
+}
+.octave-btn {
+  background: #050308;
+  border: 1px solid var(--neon);
+  color: var(--neon);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+.octave-btn:hover:not(:disabled) {
+  background: var(--neon);
+  color: #050308;
+  box-shadow: 0 0 8px var(--neon);
+}
+.octave-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.octave-range {
+  color: var(--text);
+  min-width: 90px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 2px;
+}
+.octave-hint {
+  margin-left: auto;
+  font-size: 10px;
+}
 #keyboard {
   position: relative;
   height: 200px;
