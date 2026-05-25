@@ -3,8 +3,9 @@ const path = require('node:path');
 const fs = require('node:fs/promises');
 
 const isDev = !app.isPackaged;
-const iconFile = process.platform === 'darwin' ? 'neon_waveform.icns' : 'neon_waveform.ico';
-const iconPath = path.join(__dirname, '..', iconFile);
+// Window/taskbar icon is taken from the .exe's embedded icon on Windows and
+// the .app bundle's Resources/icon.icns on Mac — both set at build time via
+// electron-builder's win.icon / mac.icon. No runtime icon path needed.
 
 const NUM_SLOTS = 8;
 const userDataDir = () => app.getPath('userData');
@@ -99,7 +100,6 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#0a0a14',
     title: 'SynthTook Local',
-    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

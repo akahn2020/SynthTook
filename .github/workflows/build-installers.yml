@@ -1,0 +1,76 @@
+name: Build installers
+
+# Triggers:
+#   - workflow_dispatch: manual run from the Actions tab. Artifacts are
+#     uploaded to the workflow run for download but no GitHub Release is
+#     created. Useful for testing changes before tagging a version.
+#   - tag push (v*): builds installers AND creates a draft GitHub Release
+#     with all artifacts attached. Edit + publish the draft to ship.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write  # needed for creating the GitHub Release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            script: dist:win
+            artifact_name: windows-installers
+            artifact_paths: |
+              dist/SynthTook-Local-Setup-*.exe
+              dist/SynthTook-Local-*-portable.exe
+          - os: macos-latest
+            script: dist:mac
+            artifact_name: mac-installers
+            artifact_paths: |
+              dist/SynthTook-Local-*.dmg
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build installer
+        run: npm run ${{ matrix.script }}
+        env:
+          # We don't sign anything. Tell electron-builder to skip its auto-
+          # discovery of signing identities so it doesn't try (and fail) to
+          # use whatever it finds in the runner's keychain/cert store.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_paths }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/windows-installers/*
+            artifacts/mac-installers/*
+          draft: true
+          generate_release_notes: true
