@@ -96,6 +96,11 @@ export function initPanel({
   let prevLeadPlayStep = -1;
   let prevRecStep = -1;
 
+  function applyCellState(cell, state) {
+    cell.classList.toggle('on', state === 'on');
+    cell.classList.toggle('tied', state === 'tied');
+  }
+
   function rebuildLeadGrid() {
     const pattern = leadTracks.active().pattern;
     gridContainer.innerHTML = '';
@@ -118,11 +123,12 @@ export function initPanel({
         let cls = 'roll-cell';
         if (black) cls += ' black-row';
         if (c % 4 === 0) cls += ' beat-start';
-        if (pattern.isOn(r, c)) cls += ' on';
         cell.className = cls;
-        cell.addEventListener('click', () => {
-          const on = pattern.toggle(r, c);
-          cell.classList.toggle('on', on);
+        applyCellState(cell, pattern.cellAt(r, c));
+        cell.addEventListener('click', (e) => {
+          if (e.shiftKey) pattern.toggleTie(r, c);
+          else pattern.toggle(r, c);
+          applyCellState(cell, pattern.cellAt(r, c));
           save();
         });
         gridContainer.appendChild(cell);

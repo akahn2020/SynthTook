@@ -52,6 +52,24 @@
     </section>
   </main>
 
+  <div id="preset-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="preset-title">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel preset-panel">
+      <button id="preset-close" type="button" aria-label="Close presets">&times;</button>
+      <h2 id="preset-title">FACTORY PRESETS</h2>
+      <div class="preset-body">
+        <div id="preset-list" class="preset-list"></div>
+        <div class="preset-detail">
+          <h3 id="preset-detail-title"></h3>
+          <p id="preset-detail-desc"></p>
+          <div id="preset-detail-meta" class="preset-meta"></div>
+          <button id="preset-load" class="preset-load-btn" type="button">LOAD PRESET</button>
+          <p class="muted small">Loading replaces your current session.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="help-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="modal-backdrop"></div>
     <div class="modal-panel">
@@ -68,13 +86,14 @@
         <ul>
           <li><strong>MIDI keyboard</strong> &mdash; pick it from the dropdown, then play.</li>
           <li><strong>Mouse</strong> &mdash; click the on-screen keys.</li>
-          <li><strong>Computer keys</strong> &mdash; <code>a w s e d f t g y h u j k</code> covers one octave starting at middle C.</li>
+          <li><strong>Computer keys</strong> &mdash; <code>a w s e d f t g y h u j k</code> covers one octave starting at middle C. Use the <strong>OCTAVE</strong> &minus; / + buttons above the keyboard (or <code>z</code> / <code>x</code>) to shift that range up or down. The current range is shown between the buttons.</li>
         </ul>
       </section>
 
       <section>
         <h3>3 · MAKE A SEQUENCE</h3>
-        <p>The big grid is the lead piano roll. Rows = pitch (C6 top to C2 bottom &mdash; 4 octaves, matching the Keystation 49e), columns = 16 steps. The viewport scrolls vertically; it opens centered near middle C. Click any cell to place a note. Multiple cells in the same column = a chord. Set BPM, hit <strong>&#9654; PLAY</strong>. The cyan column highlights the current step. You can play live on the keyboard at the same time the sequence runs. <strong>CLEAR</strong> wipes every lead track plus drums.</p>
+        <p>The big grid is the lead piano roll. Rows = pitch (C6 top to C1 bottom &mdash; 5 octaves, with the bottom octave below the Keystation 49e range for sub-bass content), columns = 16 steps. The viewport scrolls vertically; it opens centered near middle C. Click any cell to place a note. Multiple cells in the same column = a chord. Set BPM, hit <strong>&#9654; PLAY</strong>. The cyan column highlights the current step. You can play live on the keyboard at the same time the sequence runs. <strong>CLEAR</strong> wipes every lead track plus drums.</p>
+        <p><strong>Hold a note across steps with ties.</strong> Shift-click an "on" cell to convert it to a <em>tied</em> cell (rendered as a dimmer magenta block). A tie extends the previous note by one step without re-triggering &mdash; place an "on" then shift-click the next cell(s) in the same row to hold the note. Useful for pads, sub-bass, and long melodic notes. Shift-click a tied cell to flip it back to a fresh "on".</p>
         <p>The <strong>LEAD A / LEAD B</strong> tabs above the grid select which lead track you're editing. Each track keeps its own pattern and its own synth patch (oscillator, ADSR, filter, filter env), so you can layer e.g. a saw bass on A with a square pluck on B and play them simultaneously. The track tabs only swap the editing focus &mdash; both tracks always play during PLAY.</p>
         <p>The <strong>LEN</strong> selector (right side of the lead tabs, and again above the drum grid) sets each pattern's length independently &mdash; 8, 16, or 32 steps. Different lengths produce polymetric loops: e.g. an 8-step lead bass over a 16-step drum groove will line up every 16 steps. Shrinking a pattern truncates its tail; growing it pads with empty steps.</p>
       </section>
@@ -92,7 +111,7 @@
           <li><strong>Step record</strong> &mdash; sequencer stopped. A dashed magenta outline marks the cursor step. Play a note (or chord, within ~80ms) on your MIDI keyboard / on-screen keys / computer keys; it lands on that step and the cursor advances. Press <code>Space</code> or <code>&rarr;</code> to skip a step (rest).</li>
           <li><strong>Live record</strong> &mdash; press PLAY first, then arm REC. Notes you play are written onto whichever step is sounding right now. Loop the pattern and overdub.</li>
         </ul>
-        <p>Notes are recorded only if their pitch falls in the C2&ndash;C6 piano-roll range. Click REC again to disarm. The sound your shaped synth is making at the moment of recording is what plays back &mdash; but you can tweak the controls afterward and the same notes will sound different.</p>
+        <p>Notes are recorded only if their pitch falls in the C1&ndash;C6 piano-roll range. Click REC again to disarm. The sound your shaped synth is making at the moment of recording is what plays back &mdash; but you can tweak the controls afterward and the same notes will sound different.</p>
       </section>
 
       <section>
@@ -111,13 +130,19 @@
       </section>
 
       <section>
+        <h3>7.5 · LIVE TRANSPOSE</h3>
+        <p>Use the <strong>LIVE TRANSPOSE</strong> toggle above the keyboard to perform chord progressions on top of a looping pattern. With it <strong>ON</strong>, your MIDI / on-screen / computer keys stop playing notes &mdash; instead each key press shifts the entire lead loop in semitones, relative to a root. The root is automatically the lowest note in your recorded pattern, so pressing that same pitch plays at the original key (offset 0), pressing 5 semitones up plays the IV, 7 up plays the V, etc. Last-press-wins; the offset persists after release until you hit another key, so a C / F / G / C tap-pattern gives you I / IV / V / I. Drums and recording are unaffected. Toggle <strong>OFF</strong> to return the loop to its recorded pitch.</p>
+      </section>
+
+      <section>
         <h3>8 · MIXER</h3>
         <p>Five faders control level for each track plus the master output: <strong>LEAD</strong> (synth), <strong>KICK</strong>, <strong>SNARE</strong>, <strong>HAT</strong>, <strong>MASTER</strong> (everything before the speakers). Drag a fader to set the channel's volume. Click <strong>MUTE</strong> to silence a channel without losing its level &mdash; you can even drag the slider while muted to "pre-stage" a level for unmute. Useful for soloing the synth while you record a melody, or pulling drums down while you tweak filter sweeps.</p>
       </section>
 
       <section>
-        <h3>9 · PATTERN SLOTS</h3>
+        <h3>9 · PATTERN SLOTS &amp; FACTORY PRESETS</h3>
         <p>Eight named save slots, separate from the autosave that always runs. Click a filled slot to <strong>load</strong> it (page reloads with the loaded session). Click <strong>+ SAVE TO…</strong>, then click any slot, and you'll be prompted to name the snapshot before it's stored. Click <strong>CLEAR…</strong> then a filled slot to delete it. Slot data persists across browser refreshes; loading replaces your current session entirely (lead tracks, drums, mixer, arp, drum sound, BPM).</p>
+        <p>Click <strong>★ PRESETS…</strong> to open the factory preset library &mdash; eight ready-made patches each bundling a synth recipe (wave + ADSR + filter + filter env) with a matching note pattern, drums, and mixer. Useful as starting points to A/B against your own work: load a preset, hear it, then tweak the controls and see how the sound changes. The starter pack covers TB-303 acid bass, sub bass, NES pulse bass, house octave bouncer, Minimoog funk, pluck, soft pad, and stab. Like slots, loading a preset replaces your current session.</p>
       </section>
 
       <section>

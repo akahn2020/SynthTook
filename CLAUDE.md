@@ -17,11 +17,13 @@ Open `http://localhost:8080` in Chrome or Edge. Click **POWER ON** (browsers gat
 ### Audio graph (current)
 
 ```
-input sources ──► recorder.noteOn ──► voiceManager ──► masterGain ──► destination
-  (MIDI / on-screen / computer kb)         (8 voices)              ↘ analyser
-                                                                    (visualizer tap)
-scheduler ──► voiceManager.noteOn(when, ...)         (lead playback)
-scheduler ──► drumKit.trigger(track, when) ──────► masterGain      (drum playback)
+input sources ──► transposer ──► arp ──► recorder ──► voiceManager ──► masterGain ──► destination
+  (MIDI / on-screen / computer kb)                       (8 voices)                 ↘ analyser
+                       │                                                            (visualizer tap)
+                       └── publishes offset ──► scheduler (applied to lead notes only)
+
+scheduler ──► voiceManager.noteOn(when, midi+offset)   (lead playback)
+scheduler ──► drumKit.trigger(track, when) ──────────► masterGain   (drum playback, unaffected by transpose)
 ```
 
 ### Module layout
@@ -38,6 +40,8 @@ scheduler ──► drumKit.trigger(track, when) ──────► masterGai
 | `src/sequencer/pattern.js` | 2D piano-roll model. `pitches` = ordered MIDI notes, `cells[row][col]` = bool. `notesAtStep(col)` = chord at that step. |
 | `src/sequencer/drumPattern.js` | 3-row × 16-step bool grid. `tracksAtStep(col)` = which drums fire. |
 | `src/sequencer/recorder.js` | Sits between input and voice manager. When armed, also writes incoming notes into `pattern`. Two modes (auto-detected): step-record (scheduler stopped, advances `stepCursor` after each note with an 80 ms chord window) and live-record (scheduler running, writes to `scheduler.audibleStep`). |
+| `src/sequencer/transposer.js` | Live-transpose intercept at the head of the input chain (in front of arp). When enabled, swallows incoming notes (no play, no arp, no record) and sets a semitone offset = `pressedMidi − root`, which the scheduler applies to lead-track notes only. Root is computed on demand via injected `getRoot()` (currently the lowest active note across lead patterns; default C4 if empty). Last-press-wins; offset persists after release. |
+| `src/ui/transposeBar.js` | LIVE TRANSPOSE toggle + root/offset readout inserted at the top of `#keyboard-section`. Subscribes to `transposer.onChange` to update the readout on each key press. |
 | `src/ui/panel.js` | Builds the lead piano-roll grid + drum grid. Wires PLAY/STOP/REC/CLEAR, BPM, recorder-cursor visuals, step-cursor visuals, spacebar/arrow-right rest. |
 | `src/ui/controls.js` | Builds the OSCILLATOR (wave selector) + AMP / FILTER / FILTER ENV slider groups. Sliders are 0..1 with optional exponential curve mapping. |
 | `src/ui/visualizer.js` | `AnalyserNode` → canvas. Spectrum bars with magenta-to-cyan gradient over a horizon line. |
@@ -54,7 +58,8 @@ scheduler ──► drumKit.trigger(track, when) ──────► masterGai
 - **Per-note Oscillator + GainNode pairs** (not reusable). OscillatorNode is one-shot — `start()` can only be called once. Each voice slot keeps a long-lived filter and (for drums) gain bus, but creates fresh oscillators on every note.
 - **Mute and stop logic uses `cancelAndHoldAtTime(when)` with a `cancelHold` helper** that falls back to `cancelScheduledValues` for older browsers. This locks the param's current value at the cancel point so subsequent ramps interpolate cleanly.
 - **Keystation quirk:** sends Note On with velocity 0 instead of explicit Note Off. The MIDI parser treats those as Note Off. Don't break this.
-- **Inputs are decoupled from playback.** Live keyboard input → `recorder.noteOn` → `voiceManager.noteOn` (no `when` = immediate). Sequencer playback → `voiceManager.noteOn(midi, vel, when)` directly (bypasses recorder so playback isn't recorded into itself).
+- **Inputs are decoupled from playback.** Live keyboard input → `transposer` → `arp` → `recorder.noteOn` → `voiceManager.noteOn` (no `when` = immediate). Sequencer playback → `voiceManager.noteOn(midi + scheduler.transposeOffset, vel, when)` directly (bypasses recorder so playback isn't recorded into itself).
+- **Transpose offset is captured per-step in the scheduler.** Inside `_scheduleStep`, the current `transposeOffset` is read once and reused for both the noteOn and matching noteOff, so a mid-step update from the Transposer can't leave a note hanging at the wrong pitch.
 
 ## Status
 

@@ -7,6 +7,7 @@ import { Pattern } from './sequencer/pattern.js';
 import { DrumPattern } from './sequencer/drumPattern.js';
 import { Recorder } from './sequencer/recorder.js';
 import { Arpeggiator } from './sequencer/arpeggiator.js';
+import { Transposer } from './sequencer/transposer.js';
 import { initPanel } from './ui/panel.js';
 import { initControls } from './ui/controls.js';
 import { initArpControls } from './ui/arpControls.js';
@@ -15,6 +16,8 @@ import { initHelp } from './ui/help.js';
 import { initVisualizer } from './ui/visualizer.js';
 import { initMixer, applyMixerToGains } from './ui/mixer.js';
 import { initSlots } from './ui/slots.js';
+import { initPresetModal } from './ui/presetModal.js';
+import { initTransposeBar } from './ui/transposeBar.js';
 import { saveState, loadState, debounce } from './persistence.js';
 
 initHelp();
@@ -67,8 +70,11 @@ powerBtn.addEventListener('click', async () => {
   initVisualizer(ctx, masterGain, document.getElementById('visualizer'));
 
   // Build pitches once, shared across all lead tracks (same range, same grid layout).
+  // Grid spans C6 down to C1 (61 rows). Keystation 49e covers C2-C6; lower rows
+  // are reachable via the on-screen grid, presets, and computer-keyboard octave
+  // shift for sub-bass content.
   const pitches = [];
-  for (let n = 84; n >= 36; n--) pitches.push(n); // C6 down to C2 (matches Keystation 49e)
+  for (let n = 84; n >= 24; n--) pitches.push(n);
 
   const leadTrackDefs = [
     { name: 'LEAD A' },
@@ -111,6 +117,28 @@ powerBtn.addEventListener('click', async () => {
   const arp = new Arpeggiator(recorder, globalParams.arp);
   arp.setScheduler(scheduler);
 
+  // Lowest active MIDI across all lead tracks; defaults to C4 if everything's
+  // empty. Used by Transposer as the "1st" — pressing this pitch yields offset 0.
+  function lowestActiveLeadNote() {
+    let lowest = null;
+    for (const t of tracks) {
+      for (let r = t.pattern.cells.length - 1; r >= 0; r--) {
+        const row = t.pattern.cells[r];
+        for (let c = 0; c < row.length; c++) {
+          if (row[c]) {
+            const m = t.pattern.pitches[r];
+            if (lowest === null || m < lowest) lowest = m;
+            break;
+          }
+        }
+      }
+    }
+    return lowest ?? 60;
+  }
+
+  const transposer = new Transposer(arp, lowestActiveLeadNote);
+  transposer.setScheduler(scheduler);
+
   // --- Restore saved session, if any ---
   const saved = loadState();
   if (saved) {
@@ -132,7 +160,11 @@ powerBtn.addEventListener('click', async () => {
           }
           for (let r = 0; r < tracks[i].pattern.cells.length; r++) {
             for (let c = 0; c < tracks[i].pattern.cells[r].length; c++) {
-              tracks[i].pattern.cells[r][c] = !!cells[r]?.[c];
+              const v = cells[r]?.[c];
+              // Migrate legacy bool cells (pre-tie) → 'on' / null. Pass new
+              // enum values through unchanged.
+              tracks[i].pattern.cells[r][c] =
+                v === 'tied' ? 'tied' : (v ? 'on' : null);
             }
           }
         }
@@ -201,9 +233,11 @@ powerBtn.addEventListener('click', async () => {
   // --- Inputs ---
   midiSelect.disabled = false;
   midiSelect.innerHTML = '<option value="">— select MIDI input —</option>';
-  await initMidiInput(arp, midiSelect);
+  await initMidiInput(transposer, midiSelect);
 
-  initKeyboardUI(arp, document.querySelector('#keyboard .key-area'));
+  initKeyboardUI(transposer, document.querySelector('#keyboard .key-area'));
+
+  initTransposeBar(transposer, document.getElementById('keyboard-section'));
 
   initControls(leadTracks, document.getElementById('lead-controls'), triggerSave);
   initArpControls(arp, globalParams, document.getElementById('arp-controls'), triggerSave);
@@ -216,9 +250,12 @@ powerBtn.addEventListener('click', async () => {
     triggerSave,
   });
 
+  const presetModal = initPresetModal();
+
   initSlots({
     container: document.getElementById('slots-section'),
     buildSnapshot,
+    openPresetModal: presetModal.show,
   });
 
   initPanel({
