@@ -4,7 +4,7 @@
 // repopulates via the standard restore flow in main.js.
 
 import { FACTORY_PRESETS } from '../presets.js';
-import { AUTOSAVE_KEY } from '../persistence.js';
+import { replaceSession } from '../persistence.js';
 
 export function initPresetModal() {
   const modal     = document.getElementById('preset-modal');
@@ -79,10 +79,10 @@ export function initPresetModal() {
     if (e.key === 'Escape' && !modal.classList.contains('hidden')) hide();
   });
 
-  loadBtn.addEventListener('click', () => {
+  loadBtn.addEventListener('click', async () => {
     const p = FACTORY_PRESETS[selectedIndex];
     if (!window.confirm(`Load "${p.name}"? Your current session will be replaced and the page will reload.`)) return;
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(p.data));
+    await replaceSession(p.data);
     location.reload();
   });
 

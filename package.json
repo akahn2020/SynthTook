@@ -1,0 +1,66 @@
+{
+  "name": "synthtook-local",
+  "version": "0.1.0",
+  "description": "SynthTook Local — desktop edition of the SynthTook web synth/sequencer",
+  "main": "electron/main.js",
+  "author": "Adam Kahn",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "io.github.akahn2020.synthtook-local",
+    "productName": "SynthTook Local",
+    "copyright": "Copyright © 2026 Adam Kahn",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "index.html",
+      "style.css",
+      "package.json",
+      "!**/*.map",
+      "!.claude/**",
+      "!.verify/**",
+      "!TODO.md"
+    ],
+    "win": {
+      "icon": "neon_waveform.ico",
+      "target": [
+        { "target": "nsis",     "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "mac": {
+      "icon": "neon_waveform.icns",
+      "category": "public.app-category.music",
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "shortcutName": "SynthTook Local",
+      "uninstallDisplayName": "SynthTook Local",
+      "artifactName": "SynthTook-Local-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "SynthTook-Local-${version}-portable.${ext}"
+    },
+    "dmg": {
+      "artifactName": "SynthTook-Local-${version}-${arch}.${ext}"
+    }
+  }
+}

@@ -1,15 +1,17 @@
-// Pattern slots: 8 named save slots that live in localStorage alongside the
-// autosave session. Default click on a slot = LOAD (replaces autosave, reloads
-// the page so the standard restore path repopulates every UI surface). Toggle
-// SAVE mode then click a slot to overwrite it (with a name prompt). Toggle
-// CLEAR mode then click a slot to remove its contents.
+// Pattern slots: 8 named save slots that live alongside the autosave session
+// (on disk in Electron, in localStorage in browser dev). Default click on a
+// slot = LOAD (writes its data into the session via persistence.replaceSession,
+// then reloads the page so the standard restore path repopulates every UI
+// surface). Toggle SAVE mode then click a slot to overwrite it (with a name
+// prompt). Toggle CLEAR mode then click a slot to remove its contents.
 
 import {
   listSlots,
   saveSlot,
   clearSlot,
-  AUTOSAVE_KEY,
+  replaceSession,
 } from '../persistence.js';
+import { askName } from './promptModal.js';
 
 const NUM_SLOTS = 8;
 
@@ -22,7 +24,9 @@ function formatTimestamp(ms) {
 export function initSlots({ container, buildSnapshot, openPresetModal }) {
   let mode = 'load'; // 'load' | 'save' | 'clear'
 
-  function render() {
+  async function render() {
+    const slots = await listSlots();
+
     container.innerHTML = '';
 
     const heading = document.createElement('h3');
@@ -34,7 +38,6 @@ export function initSlots({ container, buildSnapshot, openPresetModal }) {
     grid.className = 'slots-row';
     container.appendChild(grid);
 
-    const slots = listSlots();
     for (let i = 0; i < NUM_SLOTS; i++) {
       const slot = slots[i];
       const btn = document.createElement('button');
@@ -103,17 +106,21 @@ export function initSlots({ container, buildSnapshot, openPresetModal }) {
     container.appendChild(controls);
   }
 
-  function handleSlotClick(index, slot) {
+  async function handleSlotClick(index, slot) {
     if (mode === 'save') {
       const fallback = slot?.name ?? `Slot ${index + 1}`;
-      const userName = window.prompt('Name this pattern:', fallback);
+      const userName = await askName({
+        title: `SAVE TO SLOT ${index + 1}`,
+        label: 'Pattern name',
+        defaultValue: fallback,
+      });
       if (userName === null) {
         mode = 'load';
         render();
         return;
       }
       const name = userName.trim() || fallback;
-      saveSlot(index, buildSnapshot(), name);
+      await saveSlot(index, buildSnapshot(), name);
       mode = 'load';
       render();
       return;
@@ -130,7 +137,7 @@ export function initSlots({ container, buildSnapshot, openPresetModal }) {
         render();
         return;
       }
-      clearSlot(index);
+      await clearSlot(index);
       mode = 'load';
       render();
       return;
@@ -139,7 +146,7 @@ export function initSlots({ container, buildSnapshot, openPresetModal }) {
     // Default mode = load
     if (!slot) return;
     if (!window.confirm(`Load "${slot.name}"? Your current session will be replaced and the page will reload.`)) return;
-    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(slot.data));
+    await replaceSession(slot.data);
     location.reload();
   }
 

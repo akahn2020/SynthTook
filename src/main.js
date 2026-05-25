@@ -140,7 +140,7 @@ powerBtn.addEventListener('click', async () => {
   transposer.setScheduler(scheduler);
 
   // --- Restore saved session, if any ---
-  const saved = loadState();
+  const saved = await loadState();
   if (saved) {
     if (Array.isArray(saved.leadTracks)) {
       for (let i = 0; i < tracks.length && i < saved.leadTracks.length; i++) {
